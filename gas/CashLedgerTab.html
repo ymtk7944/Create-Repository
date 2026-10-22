@@ -1,0 +1,189 @@
+<!--
+  タブ10「現金出納帳」の画面部品。
+  既存の利用者詳細画面に <?!= include('CashLedgerTab'); ?> などで差し込み、
+  タブを開いたときに CashLedgerTab.open(userId, userName, authorName) を呼ぶ。
+  画面に出す文字はすべて textContent で入れ、HTMLとして解釈させない。
+-->
+<style>
+  .cl-wrap { font-size: 14px; }
+  .cl-form { display: grid; grid-template-columns: 130px 1fr 120px 110px 110px auto; gap: 8px; align-items: end;
+             background: #f4f6fa; padding: 12px; border-radius: 8px; margin-bottom: 12px; }
+  .cl-form label { display: flex; flex-direction: column; font-size: 12px; color: #5b6475; gap: 4px; }
+  .cl-form input, .cl-form select { padding: 6px 8px; border: 1px solid #d9dde6; border-radius: 4px; font-size: 14px; }
+  .cl-btn { padding: 7px 16px; border: 0; border-radius: 4px; background: #3fae49; color: #fff; font-weight: 700; cursor: pointer; }
+  .cl-btn.secondary { background: #1b2754; }
+  .cl-btn.ghost { background: transparent; color: #1b2754; border: 1px solid #d9dde6; }
+  .cl-btn:disabled { opacity: .5; cursor: default; }
+  .cl-bar { display: flex; gap: 8px; align-items: center; justify-content: flex-end; margin-bottom: 8px; flex-wrap: wrap; }
+  .cl-bar input { padding: 5px 6px; border: 1px solid #d9dde6; border-radius: 4px; }
+  .cl-table { width: 100%; border-collapse: collapse; }
+  .cl-table th { background: #1b2754; color: #fff; padding: 6px 8px; text-align: left; font-weight: 700; }
+  .cl-table td { border-bottom: 1px solid #e6e9f0; padding: 6px 8px; }
+  .cl-table .num { text-align: right; white-space: nowrap; }
+  .cl-table tr.editing td { background: #fff8e1; }
+  .cl-msg { margin: 8px 0; padding: 8px 12px; border-radius: 4px; display: none; }
+  .cl-msg.err { display: block; background: #fcecec; color: #b42318; }
+  .cl-msg.ok { display: block; background: #eaf6eb; color: #2a7d32; }
+  .cl-summary { margin-top: 12px; font-size: 13px; color: #5b6475; }
+  @media (max-width: 720px) { .cl-form { grid-template-columns: 1fr 1fr; } }
+</style>
+
+<div class="cl-wrap" id="cl-root">
+  <div class="cl-msg" id="cl-msg"></div>
+  <form class="cl-form" id="cl-form" autocomplete="off">
+    <label>日付<input type="date" name="date" required></label>
+    <label>摘要<input type="text" name="memo" maxlength="200" required placeholder="例：本人へ生活費"></label>
+    <label>区分<select name="category"></select></label>
+    <label>収入<input type="number" name="income" min="0" step="1" inputmode="numeric"></label>
+    <label>支出<input type="number" name="expense" min="0" step="1" inputmode="numeric"></label>
+    <div>
+      <button class="cl-btn" type="submit" id="cl-submit">追加</button>
+      <button class="cl-btn ghost" type="button" id="cl-cancel" hidden>取消</button>
+    </div>
+  </form>
+
+  <div class="cl-bar">
+    報告期間 <input type="date" id="cl-from"> 〜 <input type="date" id="cl-to">
+    <button class="cl-btn secondary" type="button" id="cl-pdf">裁判所提出用 PDF</button>
+  </div>
+
+  <table class="cl-table">
+    <thead><tr><th>年月日</th><th>摘要</th><th>区分</th><th class="num">収入</th><th class="num">支出</th><th class="num">残高</th><th></th></tr></thead>
+    <tbody id="cl-body"></tbody>
+  </table>
+  <div class="cl-summary" id="cl-summary"></div>
+</div>
+
+<script>
+var CashLedgerTab = (function () {
+  var state = { userId: null, userName: '', author: '', entries: [], editing: null, loaded: false };
+  var $ = function (id) { return document.getElementById(id); };
+  var form = $('cl-form');
+  var yen = function (n) { return n === null || n === undefined ? '' : '¥' + Number(n).toLocaleString('ja-JP'); };
+
+  function call(fn, args, onOk) {
+    busy(true);
+    var runner = google.script.run
+      .withSuccessHandler(function (res) { busy(false); onOk(res); })
+      .withFailureHandler(function (err) { busy(false); msg('err', err && err.message ? err.message : String(err)); });
+    runner[fn].apply(runner, args);
+  }
+  function busy(on) { ['cl-submit', 'cl-pdf'].forEach(function (id) { $(id).disabled = on; }); }
+  function msg(kind, text) { var m = $('cl-msg'); m.className = 'cl-msg ' + kind; m.textContent = text; }
+
+  function render(res) {
+    state.entries = res.entries;
+    var sel = form.elements.category;
+    if (!sel.options.length) {
+      res.categories.forEach(function (c) { sel.add(new Option(c, c)); });
+      sel.value = '生活費';
+    }
+    var body = $('cl-body');
+    body.textContent = '';
+    res.entries.forEach(function (e) {
+      var tr = document.createElement('tr');
+      if (state.editing && state.editing.id === e.id) tr.className = 'editing';
+      [e.date.replace(/-/g, '/'), e.memo, e.category, yen(e.income), yen(e.expense), yen(e.balance)].forEach(function (v, i) {
+        var td = document.createElement('td');
+        td.textContent = v;
+        if (i >= 3) td.className = 'num';
+        tr.appendChild(td);
+      });
+      var td = document.createElement('td');
+      td.className = 'num';
+      var edit = document.createElement('button');
+      edit.type = 'button'; edit.className = 'cl-btn ghost'; edit.textContent = '修正';
+      edit.title = '最終更新: ' + (e.updatedBy || '');
+      edit.onclick = function () { startEdit(e); };
+      var del = document.createElement('button');
+      del.type = 'button'; del.className = 'cl-btn ghost'; del.textContent = '削除';
+      del.onclick = function () {
+        if (!confirm(e.date + '「' + e.memo + '」を削除しますか？')) return;
+        call('cashLedger_remove', [e.id, e.version], function (r) { msg('ok', '削除しました'); render(r); });
+      };
+      td.appendChild(edit); td.appendChild(del);
+      tr.appendChild(td);
+      body.appendChild(tr);
+    });
+    var s = res.summary, lines = ['収入合計 ' + yen(s.income), '支出合計 ' + yen(s.expense)];
+    Object.keys(s.byCategory).forEach(function (c) {
+      var v = s.byCategory[c];
+      if (c !== '繰越' && v.expense) lines.push(c + ' ' + yen(v.expense));
+    });
+    $('cl-summary').textContent = lines.join('　／　');
+  }
+
+  function startEdit(e) {
+    state.editing = e;
+    form.elements.date.value = e.date;
+    form.elements.memo.value = e.memo;
+    form.elements.category.value = e.category;
+    form.elements.income.value = e.income === null ? '' : e.income;
+    form.elements.expense.value = e.expense === null ? '' : e.expense;
+    $('cl-submit').textContent = '更新';
+    $('cl-cancel').hidden = false;
+    render({ entries: state.entries, categories: [], summary: summaryOf(state.entries) });
+  }
+  function endEdit() {
+    state.editing = null;
+    form.reset();
+    form.elements.date.value = today();
+    form.elements.category.value = '生活費';
+    $('cl-submit').textContent = '追加';
+    $('cl-cancel').hidden = true;
+  }
+  function summaryOf(entries) {
+    var s = { income: 0, expense: 0, byCategory: {} };
+    entries.forEach(function (e) {
+      s.income += e.income || 0; s.expense += e.expense || 0;
+      var c = s.byCategory[e.category] = s.byCategory[e.category] || { income: 0, expense: 0 };
+      c.income += e.income || 0; c.expense += e.expense || 0;
+    });
+    return s;
+  }
+  function today() {
+    var d = new Date(); d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
+    return d.toISOString().slice(0, 10);
+  }
+
+  form.addEventListener('submit', function (ev) {
+    ev.preventDefault();
+    var f = form.elements;
+    var entry = { date: f.date.value, memo: f.memo.value, category: f.category.value,
+                  income: f.income.value, expense: f.expense.value };
+    if (state.editing) {
+      call('cashLedger_update', [state.editing.id, state.editing.version, entry], function (r) {
+        msg('ok', '更新しました'); endEdit(); render(r);
+      });
+    } else {
+      call('cashLedger_add', [state.userId, state.userName, entry], function (r) {
+        msg('ok', '追加しました'); endEdit(); render(r);
+      });
+    }
+  });
+  $('cl-cancel').onclick = function () { endEdit(); render({ entries: state.entries, categories: [], summary: summaryOf(state.entries) }); };
+
+  $('cl-pdf').onclick = function () {
+    call('cashLedger_exportPdf', [state.userId, state.userName, $('cl-from').value, $('cl-to').value, state.author], function (r) {
+      var bytes = Uint8Array.from(atob(r.base64), function (c) { return c.charCodeAt(0); });
+      var a = document.createElement('a');
+      a.href = URL.createObjectURL(new Blob([bytes], { type: 'application/pdf' }));
+      a.download = r.fileName;
+      a.click();
+      setTimeout(function () { URL.revokeObjectURL(a.href); }, 10000);
+    });
+  };
+
+  return {
+    /** タブ10を開いたときに呼ぶ。同じ利用者なら再読み込みしない */
+    open: function (userId, userName, author) {
+      if (state.loaded && state.userId === userId) return;
+      state.userId = userId; state.userName = userName || ''; state.author = author || '';
+      state.loaded = true;
+      endEdit();
+      $('cl-body').textContent = '';
+      call('cashLedger_list', [userId], render);
+    }
+  };
+})();
+</script>

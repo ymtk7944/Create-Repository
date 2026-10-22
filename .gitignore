@@ -1,0 +1,5 @@
+# 個人情報を含むデータはコミットしない
+*.xlsx
+*.xls
+*.csv
+migration_out/
