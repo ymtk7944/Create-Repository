@@ -28,7 +28,7 @@
 
 ## 既存システムへの組み込み手順
 
-1. 3つのファイルをGASプロジェクトに追加する。
+1. `CashLedger.gs`・`CashLedgerScan.gs`・`CashLedgerTab.html`・`CashLedgerPrint.html` の4つをGASプロジェクトに追加する。
 2. エディタで `cashLedger_setup()` を1回実行する（データ用スプレッドシートが作られる）。
 3. スクリプトプロパティ `CASH_LEDGER_ALLOWED_EMAILS` に、使う職員のメールアドレスをカンマ区切りで入れる。
 4. 利用者詳細画面にタブ「10 現金出納帳」を追加し、`CashLedgerTab` を差し込む。
