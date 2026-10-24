@@ -3,6 +3,11 @@
 
 使い方:
     python3 tools/convert_xlsx.py ■現金出納.xlsx migration_out/
+    python3 tools/convert_xlsx.py ■現金出納.xlsx migration_out/ --opening 2026-11-01
+
+    --opening を付けると全件ではなく、各利用者の最終残高を指定日の「前期より繰越」1行として
+    import.csv に出力する（過去データは Excel で保管し、システムでは新しく始める場合）。
+    残高が合わない利用者は出力せず、レポートの「要確認」に出す。
 
 出力:
     migration_out/import.csv   cashLedger_importCsv() で取り込む CSV
@@ -133,7 +138,7 @@ def classify(memo, inc):
         if any(w in m for w in words): return cat
     return 'その他'
 
-def main(src, outdir):
+def main(src, outdir, opening=None):
     import csv, os
     os.makedirs(outdir, exist_ok=True)
     wb = openpyxl.load_workbook(src, data_only=True)
@@ -143,15 +148,20 @@ def main(src, outdir):
         if not res: warn.append(f'- {ws.title}: 読み込めませんでした（{err}）'); continue
         if not any(t['inc'] or t['out'] for t in res['tx']): warn.append(f'- {ws.title}: 取引が無いため取り込みません'); continue
         name = re.sub(r'様$', '', norm(res['name'] or ws.title).replace('■', ''))
-        for t in res['tx']:
-            rows.append([name, t['date'], t['memo'] or '', t['cat'], fmt(t['inc']), fmt(t['out'])])
         ok = res['excel_final'] is not None and abs(res['final'] - res['excel_final']) < 0.5
+        if opening:
+            if ok and res['final'] > 0:  # 残高0円の人は繰越行が不要
+                rows.append([name, opening, '前期より繰越', '繰越', fmt(res['final']), ''])
+        else:
+            for t in res['tx']:
+                rows.append([name, t['date'], t['memo'] or '', t['cat'], fmt(t['inc']), fmt(t['out'])])
         report.append((ws.title, name, len(res['tx']), res['excel_final'], res['final'], ok, res['issues']))
     with open(os.path.join(outdir, 'import.csv'), 'w', newline='', encoding='utf-8') as f:
         w = csv.writer(f); w.writerow(['userName', 'date', 'memo', 'category', 'income', 'expense']); w.writerows(rows)
     ng = [r for r in report if not r[5]]
     with open(os.path.join(outdir, 'report.md'), 'w', encoding='utf-8') as f:
-        f.write(f'# 現金出納帳 移行レポート\n\n- 対象シート: {len(report)} 名分 / 取引 {len(rows)} 件\n')
+        mode = f'開始残高のみ（{opening} 時点の「前期より繰越」）' if opening else '全件移行'
+        f.write(f'# 現金出納帳 移行レポート（{mode}）\n\n- 対象シート: {len(report)} 名分 / 取引 {len(rows)} 件\n')
         f.write(f'- 最終残高が Excel と一致: {len(report) - len(ng)} 名 / 不一致: {len(ng)} 名\n\n')
         f.write('## 利用者ごとの照合\n\n| シート | 氏名 | 件数 | Excel最終残高 | 移行後の残高 | 照合 |\n|---|---|---:|---:|---:|---|\n')
         for t, n, c, e, fin, ok, _ in report:
@@ -169,4 +179,10 @@ def yen(v):
     return '' if v is None else f'¥{v:,.0f}'
 
 if __name__ == '__main__':
-    main(sys.argv[1], sys.argv[2])
+    import argparse
+    ap = argparse.ArgumentParser()
+    ap.add_argument('src'); ap.add_argument('outdir')
+    ap.add_argument('--opening', help='開始日 YYYY-MM-DD。指定すると開始残高のみを出力する')
+    a = ap.parse_args()
+    if a.opening: datetime.date.fromisoformat(a.opening)
+    main(a.src, a.outdir, a.opening)

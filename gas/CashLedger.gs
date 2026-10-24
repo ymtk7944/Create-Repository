@@ -42,22 +42,35 @@ function cashLedger_list(userId) {
 
 /** 1件追加する */
 function cashLedger_add(userId, userName, entry) {
+  return cashLedger_addBatch(userId, userName, [entry]);
+}
+
+/** まとめて追加する（通帳・レシートの読み取り結果の登録用）。1件でも不正なら何も保存しない */
+function cashLedger_addBatch(userId, userName, entries) {
   var email = cashLedger_assertAuthorized_();
   userId = cashLedger_requireId_(userId, '利用者ID');
-  var e = cashLedger_validateEntry_(entry);
+  if (!Array.isArray(entries) || !entries.length || entries.length > 200) {
+    throw new Error('登録する内容が正しくありません');
+  }
+  var valid = entries.map(function (entry, i) {
+    try { return cashLedger_validateEntry_(entry); }
+    catch (err) { throw new Error((i + 1) + '件目：' + err.message); }
+  });
+  var name = cashLedger_safeText_(userName, 100);
   return cashLedger_withLock_(function () {
     var sheet = cashLedger_sheet_();
-    var now = new Date();
-    var row = {
-      id: Utilities.getUuid(),
-      userId: userId,
-      userName: cashLedger_safeText_(userName, 100),
-      date: e.date, memo: e.memo, category: e.category,
-      income: e.income, expense: e.expense,
-      createdBy: email, createdAt: now, updatedBy: email, updatedAt: now,
-      deleted: false, version: 1, seq: now.getTime()
-    };
-    sheet.appendRow(CASH_LEDGER_HEADERS.map(function (h) { return row[h]; }));
+    var now = new Date(), seq = now.getTime();
+    var values = valid.map(function (e) {
+      var row = {
+        id: Utilities.getUuid(), userId: userId, userName: name,
+        date: e.date, memo: e.memo, category: e.category,
+        income: e.income, expense: e.expense,
+        createdBy: email, createdAt: now, updatedBy: email, updatedAt: now,
+        deleted: false, version: 1, seq: seq++
+      };
+      return CASH_LEDGER_HEADERS.map(function (h) { return row[h]; });
+    });
+    sheet.getRange(sheet.getLastRow() + 1, 1, values.length, CASH_LEDGER_HEADERS.length).setValues(values);
     return cashLedger_list(userId);
   });
 }
