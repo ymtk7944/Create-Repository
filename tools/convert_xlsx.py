@@ -7,6 +7,7 @@
 
     --opening を付けると全件ではなく、各利用者の最終残高を指定日の「前期より繰越」1行として
     import.csv に出力する（過去データは Excel で保管し、システムでは新しく始める場合）。
+    列は出納帳システムの「出納帳_取込」シートと同じ（氏名で統合管理システムの利用者IDに紐づける）。
     残高が合わない利用者は出力せず、レポートの「要確認」に出す。
 
 出力:
@@ -151,13 +152,20 @@ def main(src, outdir, opening=None):
         ok = res['excel_final'] is not None and abs(res['final'] - res['excel_final']) < 0.5
         if opening:
             if ok and res['final'] > 0:  # 残高0円の人は繰越行が不要
-                rows.append([name, opening, '前期より繰越', '繰越', fmt(res['final']), ''])
+                # 出納帳システムの「出納帳_取込」シートの列：氏名・利用者ID・日付・摘要・項目・口座・入金・出金・メモ・並び順・元の場所
+                rows.append([name, '', opening.replace('-', '/'), '前期より繰越', '繰越', '現金', fmt(res['final']), '',
+                             'Excel最終残高より', 1, f'{ws.title}!開始残高'])
         else:
             for t in res['tx']:
                 rows.append([name, t['date'], t['memo'] or '', t['cat'], fmt(t['inc']), fmt(t['out'])])
         report.append((ws.title, name, len(res['tx']), res['excel_final'], res['final'], ok, res['issues']))
     with open(os.path.join(outdir, 'import.csv'), 'w', newline='', encoding='utf-8') as f:
-        w = csv.writer(f); w.writerow(['userName', 'date', 'memo', 'category', 'income', 'expense']); w.writerows(rows)
+        w = csv.writer(f)
+        if opening:
+            w.writerow(['氏名', '利用者ID', '日付', '摘要', '項目', '口座', '入金', '出金', 'メモ', '並び順', '元の場所'])
+        else:
+            w.writerow(['userName', 'date', 'memo', 'category', 'income', 'expense'])
+        w.writerows(rows)
     ng = [r for r in report if not r[5]]
     with open(os.path.join(outdir, 'report.md'), 'w', encoding='utf-8') as f:
         mode = f'開始残高のみ（{opening} 時点の「前期より繰越」）' if opening else '全件移行'
