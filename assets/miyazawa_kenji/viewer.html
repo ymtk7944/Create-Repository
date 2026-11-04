@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>宮沢賢治 3Dビュー</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Shippori+Mincho:wght@500;700&family=Zen+Kaku+Gothic+New:wght@400;500&display=swap">
+<script type="module" src="https://cdn.jsdelivr.net/npm/@google/model-viewer@3.5.0/dist/model-viewer.min.js"></script>
+<style>
+/* 一画面: 上に名前、中央に回せる人物、下に向き切り替え。アプリの黒×金に合わせた単一ダークテーマ */
+:root {
+  color-scheme: dark;
+  --ink: #0b0a08;
+  --panel: #15130f;
+  --line: #3a3326;
+  --gold: #c9ad72;
+  --text: #ece6d8;
+  --muted: #8f8676;
+  --display: "Shippori Mincho", "Hiragino Mincho ProN", "Yu Mincho", serif;
+  --body: "Zen Kaku Gothic New", "Hiragino Sans", "Yu Gothic", sans-serif;
+}
+html, body { height: 100%; }
+body {
+  background: radial-gradient(120% 70% at 50% 40%, #1d1912 0%, var(--ink) 70%);
+  background-color: var(--ink);
+  color: var(--text);
+  font-family: var(--body);
+  display: flex; flex-direction: column;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 16px;
+  box-sizing: border-box;
+  gap: 12px;
+}
+header { display: flex; align-items: center; justify-content: center; gap: 14px; }
+header::before, header::after { content: ""; height: 1px; width: 56px; background: var(--line); }
+h1 {
+  margin: 0; font-family: var(--display); font-weight: 500; color: var(--gold);
+  font-size: 1.4rem; letter-spacing: .5em; padding-left: .5em;
+}
+.stage { flex: 1; min-height: 0; position: relative; }
+model-viewer {
+  width: 100%; height: 100%; --poster-color: transparent; background: transparent;
+  --progress-bar-color: var(--gold);
+}
+.hint {
+  position: absolute; left: 0; right: 0; bottom: 6px; text-align: center;
+  color: var(--muted); font-size: .8rem; letter-spacing: .08em; pointer-events: none;
+}
+nav { display: flex; justify-content: center; gap: 8px; flex-wrap: wrap; }
+nav button {
+  font: inherit; font-size: .9rem; color: var(--text); background: var(--panel);
+  border: 1px solid var(--line); border-radius: 999px; padding: 8px 16px; cursor: pointer;
+  letter-spacing: .12em;
+}
+nav button[aria-pressed="true"] { border-color: var(--gold); color: var(--gold); }
+nav button:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+</style>
+</head>
+<body>
+
+<header><h1>宮沢賢治</h1></header>
+<div class="stage">
+  <model-viewer id="kenji" src="miyazawa_kenji.glb" alt="宮沢賢治の3Dモデル"
+    camera-controls touch-action="pan-y" auto-rotate auto-rotate-delay="1500" rotation-per-second="20deg"
+    camera-orbit="0deg 82deg auto" min-camera-orbit="auto 40deg auto" max-camera-orbit="auto 100deg auto"
+    interaction-prompt="none" shadow-intensity="0.6" shadow-softness="1" exposure="1"></model-viewer>
+  <p class="hint">指でなぞると回せます</p>
+</div>
+<nav aria-label="向き">
+  <button id="v-front" data-orbit="0deg" aria-pressed="false">正面</button>
+  <button id="v-left" data-orbit="90deg" aria-pressed="false">左側面</button>
+  <button id="v-back" data-orbit="180deg" aria-pressed="false">背面</button>
+  <button id="v-right" data-orbit="-90deg" aria-pressed="false">右側面</button>
+  <button id="v-spin" data-spin="1" aria-pressed="true">回転</button>
+</nav>
+
+<script>
+const mv = document.getElementById('kenji');
+const buttons = document.querySelectorAll('nav button');
+const press = (b) => buttons.forEach(x => x.setAttribute('aria-pressed', String(x === b)));
+if (matchMedia('(prefers-reduced-motion: reduce)').matches) {
+  mv.removeAttribute('auto-rotate');
+  press(document.getElementById('v-front'));
+}
+buttons.forEach(b => b.addEventListener('click', () => {
+  press(b);
+  if (b.dataset.spin) { mv.setAttribute('auto-rotate', ''); return; }
+  mv.removeAttribute('auto-rotate');
+  mv.cameraOrbit = `${b.dataset.orbit} 82deg auto`;
+}));
+mv.addEventListener('camera-change', (e) => {
+  if (e.detail.source === 'user' && mv.hasAttribute('auto-rotate')) {
+    mv.removeAttribute('auto-rotate'); press(null);
+  }
+});
+</script>
+</body>
+</html>
