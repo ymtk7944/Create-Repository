@@ -1,0 +1,8 @@
+# 宮沢賢治 3Dビュー（静的ファイルのみの Worker）
+# デプロイ: このフォルダで `npx wrangler deploy`
+#   → https://kenji-3d.<アカウントのサブドメイン>.workers.dev
+name = "kenji-3d"
+compatibility_date = "2026-10-01"
+
+[assets]
+directory = "./public"
