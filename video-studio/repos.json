@@ -1,0 +1,19 @@
+{
+  "description": "AI video production stack: 14 open-source repositories (voice, subtitles, 3D, motion, rendering)",
+  "repos": [
+    { "id": "hyperframes",          "repo": "heygen-com/hyperframes",           "role": "render",   "install": "npm i -D hyperframes && npx hyperframes skills update" },
+    { "id": "remotion",             "repo": "remotion-dev/remotion",            "role": "render",   "install": "npm i remotion @remotion/cli" },
+    { "id": "gsap",                 "repo": "greensock/GSAP",                   "role": "motion",   "install": "npm i gsap" },
+    { "id": "three.js",             "repo": "mrdoob/three.js",                  "role": "3d",       "install": "npm i three" },
+    { "id": "blender",              "repo": "blender/blender",                  "role": "3d",       "install": "apt-get install blender / https://www.blender.org/download/" },
+    { "id": "mcp-for-blender",      "repo": "ahujasid/mcp-for-blender",         "role": "3d-agent", "install": "uvx mcp-for-blender setup" },
+    { "id": "ComfyUI",              "repo": "Comfy-Org/ComfyUI",                "role": "genai",    "install": "git clone + pip install -r requirements.txt (GPU)" },
+    { "id": "chatterbox",           "repo": "resemble-ai/chatterbox",           "role": "voice",    "install": "pip install chatterbox-tts" },
+    { "id": "faster-whisper",       "repo": "SYSTRAN/faster-whisper",           "role": "subtitle", "install": "pip install faster-whisper" },
+    { "id": "FFmpeg",               "repo": "FFmpeg/FFmpeg",                    "role": "encode",   "install": "apt-get install ffmpeg" },
+    { "id": "yt-dlp",               "repo": "yt-dlp/yt-dlp",                    "role": "source",   "install": "pip install yt-dlp" },
+    { "id": "chrome-devtools-mcp",  "repo": "ChromeDevTools/chrome-devtools-mcp","role": "qa-agent", "install": "npx chrome-devtools-mcp@latest (see .mcp.json)" },
+    { "id": "impeccable",           "repo": "pbakaus/impeccable",               "role": "design",   "install": "npx impeccable install --providers=claude --scope=project" },
+    { "id": "skills",               "repo": "anthropics/skills",                "role": "agent",    "install": "/plugin marketplace add anthropics/skills" }
+  ]
+}

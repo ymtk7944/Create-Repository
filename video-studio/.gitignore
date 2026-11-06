@@ -1,0 +1,12 @@
+node_modules/
+vendor/
+out/
+work/
+*.mp4
+*.wav
+*.srt
+!examples/**
+.venv/
+.hyperframes/
+examples/hyperframes/.hyperframes/
+__pycache__/
